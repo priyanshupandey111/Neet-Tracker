@@ -38,18 +38,94 @@ def stats(rows):
     return {s:{"total":sum(r["subject"]==s for r in rows),"done":sum(r["subject"]==s and r["done"] for r in rows),"percent":round(sum(r["subject"]==s and r["done"] for r in rows)*100/sum(r["subject"]==s for r in rows)) if sum(r["subject"]==s for r in rows) else 0} for s in SUBJECTS}
 
 def split_pyq_question(text):
-    """Split the source question into stem + four numbered options when present."""
+    """Split a PYQ into a clean stem and four option texts.
+    The source data uses numbered options like (1) ... (2) ... (3) ... (4) ...
+    """
     import re
-    parts=re.split(r'\s*\((1|2|3|4)\)\s*', text)
-    if len(parts) >= 10:
-        stem=parts[0].strip()
-        opts={}
-        for i in range(1, len(parts)-1, 2):
-            n=parts[i]
-            if n in {"1","2","3","4"}: opts[n]=parts[i+1].strip()
-        if len(opts)==4:
+    text = (text or '').strip()
+    matches = list(re.finditer(r'\(\s*([1-4])\s*\)', text))
+    # Require the first four numbered markers to be 1,2,3,4.
+    if len(matches) >= 4 and [m.group(1) for m in matches[:4]] == ['1','2','3','4']:
+        stem = text[:matches[0].start()].strip()
+        opts = {}
+        for idx, m in enumerate(matches[:4]):
+            end = matches[idx + 1].start() if idx + 1 < 4 else len(text)
+            opts[m.group(1)] = text[m.end():end].strip()
+        if all(opts.get(str(i)) for i in range(1,5)):
             return stem, opts
-    return text.strip(), {}
+    return text, {}
+
+def option_text(q, letter):
+    """Return the human-readable option text for A/B/C/D."""
+    if not letter:
+        return ''
+    _, opts = split_pyq_question(q.get('question',''))
+    return opts.get(str(ord(letter.upper()) - 64), '')
+
+def clean_explanation(q, options):
+    """Create a question-specific solution without repeating chapter boilerplate."""
+    raw = (q.get('explanation') or '').strip()
+    correct = str(q.get('answer','')).upper()
+    correct_text = options.get(str(ord(correct)-64), '') if correct in 'ABCD' else ''
+    stem, _ = split_pyq_question(q.get('question',''))
+
+    # Keep only genuinely useful source detail. The old dataset contains many
+    # chapter-level/generic paragraphs; those are intentionally not repeated.
+    useful = []
+    for p in [x.strip() for x in raw.split('\n\n') if x.strip()]:
+        low = p.lower()
+        if low.startswith('correct option:'):
+            continue
+        if low.startswith('question ka focus:'):
+            continue
+        if 'pehle question mein diye facts/conditions ko underline karo' in low:
+            continue
+        if low.startswith('desi mein samjho:'):
+            p = p.split(':', 1)[1].strip()
+        if 'is question ko solve karte waqt chapter ke core ncert concept' in p.lower():
+            continue
+        # Most remaining source lines are chapter summaries. Keep only lines
+        # that mention a concrete mechanism/relationship rather than generic
+        # study advice.
+        if p and len(p) > 25:
+            useful.append(p)
+
+    topic = stem.rstrip(':?').strip()
+    topic = re.sub(
+        r'^(which|what|why|how|select|choose|identify|find|consider)\s+'
+        r'(one|the)?\s*(of the following)?\s*',
+        '', topic, flags=re.I
+    ).strip()
+    topic = topic.rstrip(':?').strip()
+    if len(topic) > 180:
+        topic = topic[:180].rsplit(' ', 1)[0] + '…'
+
+    lines = []
+    if correct_text:
+        lines.append(f"Core concept: {topic} → {correct_text}.")
+        lines.append(
+            f"Desi mein samjho: question ki key condition **{topic}** hai. "
+            f"Is condition ke hisaab se **{correct_text}** sahi match hai."
+        )
+        lines.append(
+            f"Yaad rakhne wali line: **{topic} → {correct_text}**."
+        )
+    else:
+        lines.append(f"Core concept: {topic}.")
+
+    # Preserve useful source detail, but label it as supporting knowledge
+    # instead of pretending it is a question-specific derivation.
+    if useful:
+        lines.append("NCERT connection: " + " ".join(useful))
+
+    return "\n\n".join(lines)
+
+def prepare_pyq(q):
+    item = dict(q)
+    item['stem'], item['options'] = split_pyq_question(q.get('question',''))
+    item['option_texts'] = {letter: item['options'].get(str(ord(letter)-64), '') for letter in 'ABCD'}
+    item['correct_text'] = item['option_texts'].get(str(q.get('answer','')).upper(), '') if q.get('answer') else ''
+    return item
 
 def pyq_filters():
     subject=request.args.get('subject','All'); chapter=request.args.get('chapter','All'); year=request.args.get('year','All'); phase=request.args.get('phase','All')
@@ -163,11 +239,7 @@ def pyq_test():
     rnd=random.Random(seed); chosen=rows if len(rows)<=count else rnd.sample(rows,count)
     key='|'.join(str(x['id']) for x in chosen)
     
-    prepared=[]
-    for q in chosen:
-        item=dict(q)
-        item['stem'], item['options']=split_pyq_question(q.get('question',''))
-        prepared.append(item)
+    prepared=[prepare_pyq(q) for q in chosen]
     return render_template('pyq_test.html',questions=prepared,test_key=key,filters=dict(subject=subject,chapter=chapter,year=year,phase=phase),count=len(prepared))
 
 @app.route('/pyq/submit',methods=['POST'])
@@ -184,7 +256,18 @@ def pyq_submit():
             else: wrong+=1
     total=len(ids); score=correct*4-wrong
     c=db(); c.execute('INSERT INTO pyq_attempts(user_id,test_key,score,total,correct,wrong,answers_json,created_at) VALUES(?,?,?,?,?,?,?,?)',(session['user_id'],request.form.get('test_key',''),score,total,correct,wrong,json.dumps(answers),datetime.now().isoformat())); c.commit(); c.close()
-    result=[dict(q,selected=answers.get(q['id'],''),is_correct=answers.get(q['id'])==q['answer']) for qid in ids if (q:=questions.get(qid))]
+    result=[]
+    for qid in ids:
+        q=questions.get(qid)
+        if not q:
+            continue
+        item=prepare_pyq(q)
+        selected=answers.get(q['id'],'')
+        item['selected']=selected
+        item['selected_text']=item['option_texts'].get(selected,'') if selected else ''
+        item['is_correct']=bool(selected) and selected==q['answer']
+        item['solution']=clean_explanation(q,item['options'])
+        result.append(item)
     return render_template('pyq_result.html',questions=result,score=score,total=total,correct=correct,wrong=wrong,unattempted=total-correct-wrong)
 
 @app.route('/teacher')
