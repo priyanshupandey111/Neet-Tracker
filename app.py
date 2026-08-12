@@ -14,7 +14,8 @@ def db():
 def init_db():
     c=db(); c.executescript("""CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,email TEXT UNIQUE NOT NULL,password_hash TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'student',created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS studies(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL,topic TEXT NOT NULL,subject TEXT NOT NULL,study_type TEXT NOT NULL,study_date TEXT NOT NULL,notes TEXT DEFAULT '',done INTEGER DEFAULT 0,completed_at TEXT,created_at TEXT NOT NULL,FOREIGN KEY(user_id) REFERENCES users(id));
-CREATE TABLE IF NOT EXISTS pyq_attempts(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL,test_key TEXT NOT NULL,score INTEGER NOT NULL,total INTEGER NOT NULL,correct INTEGER NOT NULL,wrong INTEGER NOT NULL,answers_json TEXT NOT NULL,created_at TEXT NOT NULL,FOREIGN KEY(user_id) REFERENCES users(id));""")
+CREATE TABLE IF NOT EXISTS pyq_attempts(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL,test_key TEXT NOT NULL,score INTEGER NOT NULL,total INTEGER NOT NULL,correct INTEGER NOT NULL,wrong INTEGER NOT NULL,answers_json TEXT NOT NULL,created_at TEXT NOT NULL,FOREIGN KEY(user_id) REFERENCES users(id));
+CREATE TABLE IF NOT EXISTS calendar_completions(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL,completion_date TEXT NOT NULL,created_at TEXT NOT NULL,UNIQUE(user_id,completion_date),FOREIGN KEY(user_id) REFERENCES users(id));""")
     if not c.execute("SELECT id FROM users WHERE email='teacher@neet.local'").fetchone():
         c.execute("INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)",("Teacher","teacher@neet.local",generate_password_hash("teacher123"),"teacher",datetime.now().isoformat()))
     c.commit(); c.close()
@@ -91,10 +92,44 @@ def delete(i):
 @app.route("/calendar")
 @req("student")
 def cal():
-    y=int(request.args.get("year",date.today().year)); m=int(request.args.get("month",date.today().month)); c=db(); rows=c.execute("SELECT * FROM studies WHERE user_id=? AND substr(study_date,1,7)=?",(session["user_id"],f"{y:04d}-{m:02d}")).fetchall(); c.close(); by={}
+    try:
+        y=int(request.args.get("year",date.today().year)); m=int(request.args.get("month",date.today().month))
+        if m<1 or m>12: raise ValueError
+    except ValueError:
+        y,m=date.today().year,date.today().month
+    c=db()
+    rows=c.execute("SELECT * FROM studies WHERE user_id=? AND substr(study_date,1,7)=? ORDER BY study_date,id",(session["user_id"],f"{y:04d}-{m:02d}")).fetchall()
+    done_rows=c.execute("SELECT completion_date FROM calendar_completions WHERE user_id=?",(session["user_id"],)).fetchall()
+    c.close()
+    by={}
     for r in rows: by.setdefault(int(r["study_date"][8:10]),[]).append(r)
+    completed_dates={r["completion_date"] for r in done_rows}
     pm,py=(12,y-1) if m==1 else (m-1,y); nm,ny=(1,y+1) if m==12 else (m+1,y)
-    return render_template("calendar.html",weeks=calendar.monthcalendar(y,m),by=by,month=calendar.month_name[m],year=y,pm=pm,py=py,nm=nm,ny=ny,today=date.today().isoformat())
+    day_labels={d:f"{d} {calendar.month_abbr[m]} {y}" for d in range(1,calendar.monthrange(y,m)[1]+1)}
+    quotes=[
+        "Bas aaj ka din jeet lo. 🔥","1% better every day.","Consistency > motivation.",
+        "NCERT kholo, concept pakdo, question lagao.","Future you will thank you.",
+        "Ek aur chapter. Ek aur step. 🚀","Phone kam, focus zyada.","Aaj ka effort kal ka rank hai.",
+        "Slow progress bhi progress hai.","Discipline se dream reality banta hai.",
+        "Revision karo, confidence badhao.","NEET ko daily chhote steps se crack karo."
+    ]
+    return render_template("calendar.html",weeks=calendar.monthcalendar(y,m),by=by,completed_dates=completed_dates,quotes=quotes,day_labels=day_labels,month=calendar.month_name[m],month_num=m,year=y,pm=pm,py=py,nm=nm,ny=ny,today=date.today().isoformat(),today_label=date.today().strftime("%d %B %Y"))
+
+@app.route("/calendar/toggle",methods=["POST"])
+@req("student")
+def toggle_calendar_date():
+    target=request.form.get("date","").strip()
+    try:
+        datetime.strptime(target,"%Y-%m-%d")
+    except ValueError:
+        return redirect(url_for("cal"))
+    c=db(); exists=c.execute("SELECT id FROM calendar_completions WHERE user_id=? AND completion_date=?",(session["user_id"],target)).fetchone()
+    if exists:
+        c.execute("DELETE FROM calendar_completions WHERE id=?",(exists["id"],))
+    else:
+        c.execute("INSERT INTO calendar_completions(user_id,completion_date,created_at) VALUES(?,?,?)",(session["user_id"],target,datetime.now().isoformat()))
+    c.commit(); c.close()
+    return redirect(url_for("cal",year=request.form.get("year",date.today().year),month=request.form.get("month",date.today().month)))
 
 @app.route('/pyq')
 @req()
