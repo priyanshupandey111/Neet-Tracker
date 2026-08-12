@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}NEET PYQ Test{% endblock %}
+{% block body %}
+<div class="testbar">
+  <div>
+    <small>NEET PYQ TEST • ANSWERS HIDDEN</small>
+    <h1>{{count}} Questions</h1>
+    <p>{{filters.subject}} · {{filters.chapter}} · {{filters.year}} · {{filters.phase}}</p>
+  </div>
+  <div id="timer">⏱️ <span>00:00</span></div>
+</div>
+
+<div class="test-note">💡 <b>Exam mode:</b> Abhi sirf question aur options dikh rahe hain. Correct answer aur explanation <b>Submit Test</b> ke baad hi unlock honge.</div>
+
+<form method="post" action="{{url_for('pyq_submit')}}" id="testForm">
+  <input type="hidden" name="test_key" value="{{test_key}}">
+  <input type="hidden" name="ids" value="{{questions|map(attribute='id')|join('|')}}">
+
+  {% for q in questions %}
+  <section class="question card">
+    <div class="qmeta">
+      <span class="q-number">Q{{loop.index}}</span>
+      <span>📅 {{q.year}}</span>
+      <span>{{q.phase}}</span>
+      <span>{{q.subject}}</span>
+      <span>{{q.chapter}}</span>
+    </div>
+
+    <h2>{{q.stem}}</h2>
+
+    <div class="options">
+      {% for letter in ['A','B','C','D'] %}
+        {% set txt=q.option_texts[letter] %}
+        {% if txt %}
+        <label class="option-card">
+          <input type="radio" name="q_{{q.id}}" value="{{letter}}">
+          <span class="option-letter">{{letter}}</span>
+          <span class="option-text">{{txt}}</span>
+        </label>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+
+  <div class="submit-wrap">
+    <button class="submit-test" type="submit">🚀 Submit Test & Unlock All Solutions</button>
+  </div>
+</form>
+
+<script>
+let s=0;
+setInterval(()=>{
+  s++;
+  let m=String(Math.floor(s/60)).padStart(2,'0');
+  let x=String(s%60).padStart(2,'0');
+  document.querySelector('#timer span').textContent=m+':'+x;
+},1000);
+
+document.getElementById('testForm').addEventListener('submit', function(e){
+  if(!confirm('Test submit karna hai? Submit ke baad answers aur solutions show honge.')){
+    e.preventDefault();
+  }
+});
+</script>
+{% endblock %}

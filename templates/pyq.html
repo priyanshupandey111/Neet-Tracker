@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}NEET PYQ Test Series{% endblock %}
+{% block body %}
+<div class="hero">
+  <div>
+    <small>2016 → 2026 PYQ LIBRARY</small>
+    <h1>📚 NEET PYQ Test Series</h1>
+    <p>Chapter-wise PYQ practice karo. <b>Answer test ke pehle kahin nahi dikhega.</b> Submit ke baad complete solutions milenge.</p>
+  </div>
+  <div class="streak">🧠 {{total}} PYQs</div>
+</div>
+
+<section class="card">
+  <form class="filter" method="get">
+    <select name="subject">
+      {% for s in subjects %}<option value="{{s}}" {% if s==subject %}selected{% endif %}>{{s}}</option>{% endfor %}
+    </select>
+    <select name="chapter">
+      <option value="All">All Chapters</option>
+      {% for c in chapters %}<option value="{{c}}" {% if c==chapter %}selected{% endif %}>{{c}}</option>{% endfor %}
+    </select>
+    <select name="year">
+      <option value="All">All Years</option>
+      {% for y in years %}<option value="{{y}}" {% if y|string==year|string %}selected{% endif %}>{{y}}</option>{% endfor %}
+    </select>
+    <select name="phase">
+      <option value="All">All Phases</option>
+      {% for p in phases %}<option value="{{p}}" {% if p==phase %}selected{% endif %}>{{p}}</option>{% endfor %}
+    </select>
+    <button class="primary" type="submit">🔎 Apply Filter</button>
+  </form>
+</section>
+
+<section class="card test-launch">
+  <div class="title">
+    <div>
+      <small>READY TO TEST?</small>
+      <h2>🎯 Start Chapter-wise Test</h2>
+      <p class="muted">{{total}} questions available · {{subject}} · {{chapter}} · {{year}} · {{phase}}</p>
+    </div>
+    {% if total %}
+      <a class="primary start-test" href="{{url_for('pyq_test',subject=subject,chapter=chapter,year=year,phase=phase,count=10)}}">🚀 Start Test</a>
+    {% else %}
+      <span class="muted">No PYQs found</span>
+    {% endif %}
+  </div>
+  {% if total %}
+  <div class="test-counts">
+    {% for n in [10,20,30,50] %}
+      {% if total >= n %}<a href="{{url_for('pyq_test',subject=subject,chapter=chapter,year=year,phase=phase,count=n)}}">📝 {{n}} Questions →</a>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <div class="title">
+    <h2>📖 PYQ Preview</h2>
+    <span class="pill">{{total}} found</span>
+  </div>
+  <p class="muted">Answer key intentionally hidden here. Pehle test attempt karo, phir result page par answer + explanation dekho.</p>
+  {% if rows %}
+  <div class="pyq-table">
+    <div class="pyq-head"><span>Year</span><span>Subject</span><span>Chapter</span><span>Question</span><span>Test</span></div>
+    {% for q in rows[:120] %}
+    <div class="pyq-row">
+      <span><b>{{q.year}}</b><small>{{q.phase}}</small></span>
+      <span>{{q.subject}}</span>
+      <span>{{q.chapter}}</span>
+      <span>{{q.question[:180] }}{% if q.question|length>180 %}…{% endif %}</span>
+      <span><a class="mini-start" href="{{url_for('pyq_test',subject=subject,chapter=chapter,year=year,phase=phase,count=10)}}">Attempt</a></span>
+    </div>
+    {% endfor %}
+  </div>
+  {% if total>120 %}<p class="muted">First 120 questions shown. Test engine complete filtered set use karta hai.</p>{% endif %}
+  {% else %}<p class="empty">Is filter mein PYQ nahi mila. Filter change karke dekho.</p>{% endif %}
+</section>
+{% endblock %}
