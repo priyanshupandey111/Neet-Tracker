@@ -62,6 +62,14 @@ def split_pyq_question(text):
             return stem, opts
     return (text or '').strip(), {}
 
+def norm_chapter(s):
+    s = (s or "").replace("&", "and").strip().lower()
+    s = re.sub(r"\s+", " ", s)
+    s = re.sub(r"[^a-z0-9 ]+", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+def same_chapter(a, b):
+    return norm_chapter(a) == norm_chapter(b)
 def pyq_filters():
     subject=request.args.get('subject','All'); chapter=request.args.get('chapter','All'); year=request.args.get('year','All'); phase=request.args.get('phase','All')
     rows=PYQS
