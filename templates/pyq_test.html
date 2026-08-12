@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}NEET PYQ Test{% endblock %}
+{% block body %}
+<div class="testbar">
+  <div><small>NEET PYQ TEST</small><h1>{{count}} Questions</h1><p>{{filters.subject}} · {{filters.chapter}} · {{filters.year}} · {{filters.phase}}</p></div>
+  <div id="timer">⏱️ <span>00:00</span></div>
+</div>
+
+<form method="post" action="{{url_for('pyq_submit')}}" id="testForm">
+  <input type="hidden" name="test_key" value="{{test_key}}">
+  <input type="hidden" name="ids" value="{{questions|map(attribute='id')|join('|')}}">
+  {% for q in questions %}
+  <section class="question card">
+    <div class="qmeta"><span>Q{{loop.index}}</span><span>📅 {{q.year}}</span><span>{{q.phase}}</span><span>{{q.subject}}</span><span>{{q.chapter}}</span></div>
+    <h2>{{q.stem}}</h2>
+    <div class="options">
+      {% if q.options %}
+        {% for o,n in [('A','1'),('B','2'),('C','3'),('D','4')] %}
+        <label><input type="radio" name="q_{{q.id}}" value="{{o}}"><span><b>{{o}}.</b> {{q.options[n]}}</span></label>
+        {% endfor %}
+      {% else %}
+        {% for o in ['A','B','C','D'] %}<label><input type="radio" name="q_{{q.id}}" value="{{o}}"><span><b>{{o}}</b></span></label>{% endfor %}
+      {% endif %}
+    </div>
+  </section>
+  {% endfor %}
+  <div class="submit-wrap"><button class="submit-test" type="submit">🚀 Submit Test & See All Solutions</button></div>
+</form>
+<script>
+let s=0;
+setInterval(()=>{s++;let m=String(Math.floor(s/60)).padStart(2,'0'),x=String(s%60).padStart(2,'0');document.querySelector('#timer span').textContent=m+':'+x},1000);
+</script>
+{% endblock %}
