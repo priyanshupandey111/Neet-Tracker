@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}NEET Study Calendar{% endblock %}
+{% block body %}
+<div class="calendar-hero">
+  <div>
+    <small>DAILY DISCIPLINE • NEET 2026</small>
+    <h1>📅 My Study Calendar</h1>
+    <p>Har din complete karo. Chhoti consistency hi bada result banati hai. 🔥</p>
+  </div>
+  <div class="date-badge">📌 Today<br><b>{{ today_label }}</b></div>
+</div>
+
+<section class="card calendar-card">
+  <div class="calnav">
+    <a class="month-btn" href="?month={{pm}}&year={{py}}">←</a>
+    <div class="month-title"><h2>{{month}} {{year}}</h2><span>NEET Preparation Calendar</span></div>
+    <a class="month-btn" href="?month={{nm}}&year={{ny}}">→</a>
+  </div>
+
+  <div class="week calendar-week">
+    <b>Monday</b><b>Tuesday</b><b>Wednesday</b><b>Thursday</b><b>Friday</b><b>Saturday</b><b>Sunday</b>
+  </div>
+
+  <div class="calendar-grid">
+  {% for w in weeks %}
+    {% for d in w %}
+      {% if d %}
+        {% set ds = '%04d-%02d-%02d'|format(year, month_num, d) %}
+        <div class="calendar-day {% if ds == today %}is-today{% endif %} {% if ds in completed_dates %}is-complete{% endif %}">
+          <div class="day-top">
+            <div><span class="day-number">{{d}}</span><span class="day-full">{{day_labels[d]}}</span></div>
+            {% if ds == today %}<span class="today-pill">TODAY</span>{% endif %}
+          </div>
+
+          {% if by.get(d) %}
+            <div class="day-tasks">
+              {% for x in by.get(d,[])[:3] %}
+                <div class="mini-task {% if x.done %}done{% endif %}">
+                  <span>{{'✓' if x.done else '•'}}</span> {{x.topic[:28]}}
+                </div>
+              {% endfor %}
+              {% if by.get(d)|length > 3 %}<small>+ {{by.get(d)|length - 3}} more tasks</small>{% endif %}
+            </div>
+          {% else %}
+            <div class="no-task">No study plan added</div>
+          {% endif %}
+
+          <div class="day-quote">{{quotes[(d-1) % (quotes|length)]}}</div>
+
+          <form method="post" action="{{url_for('toggle_calendar_date')}}">
+            <input type="hidden" name="date" value="{{ds}}">
+            <input type="hidden" name="year" value="{{year}}">
+            <input type="hidden" name="month" value="{{month_num}}">
+            <button class="complete-btn {% if ds in completed_dates %}completed{% endif %}" type="submit">
+              {% if ds in completed_dates %}✓ Day Completed{% else %}✓ Mark Day Complete{% endif %}
+            </button>
+          </form>
+        </div>
+      {% else %}
+        <div class="calendar-day empty-day"></div>
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
+  </div>
+</section>
+
+<section class="motivation-card">
+  <div class="motivation-icon">🔥</div>
+  <div>
+    <small>REMEMBER</small>
+    <h2>“Aaj ka ek complete day, kal ke confidence ko strong karta hai.”</h2>
+    <p>Perfect hone ki zarurat nahi. Bas aaj ka target complete karo — phir kal repeat karo.</p>
+  </div>
+</section>
+{% endblock %}
