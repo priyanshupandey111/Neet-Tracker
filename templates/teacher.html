@@ -1,3 +1,0 @@
-{% extends "base.html" %}{% block body %}<h1>👨‍🏫 Teacher Dashboard</h1><p>Students ka progress ek jagah dekho.</p>
-<section class="card"><h2>Students ({{students|length}})</h2>{% if students %}<table><tr><th>Student</th><th>Email</th><th>Completed</th><th>Total</th><th>Progress</th><th></th></tr>
-{% for s in students %}<tr><td><b>{{s.name}}</b></td><td>{{s.email}}</td><td>{{s.done}}</td><td>{{s.total}}</td><td><div class="bar"><i style="width:{{s.percent}}%"></i></div>{{s.percent}}%</td><td><a class="button" href="{{url_for('student_detail',uid=s.id)}}">View</a></td></tr>{% endfor %}</table>{% else %}<p>No students registered yet.</p>{% endif %}</section>{% endblock %}
