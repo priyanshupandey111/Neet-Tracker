@@ -37,6 +37,20 @@ def streak(rows):
 def stats(rows):
     return {s:{"total":sum(r["subject"]==s for r in rows),"done":sum(r["subject"]==s and r["done"] for r in rows),"percent":round(sum(r["subject"]==s and r["done"] for r in rows)*100/sum(r["subject"]==s for r in rows)) if sum(r["subject"]==s for r in rows) else 0} for s in SUBJECTS}
 
+def split_pyq_question(text):
+    """Split the source question into stem + four numbered options when present."""
+    import re
+    parts=re.split(r'\s*\((1|2|3|4)\)\s*', text)
+    if len(parts) >= 10:
+        stem=parts[0].strip()
+        opts={}
+        for i in range(1, len(parts)-1, 2):
+            n=parts[i]
+            if n in {"1","2","3","4"}: opts[n]=parts[i+1].strip()
+        if len(opts)==4:
+            return stem, opts
+    return text.strip(), {}
+
 def pyq_filters():
     subject=request.args.get('subject','All'); chapter=request.args.get('chapter','All'); year=request.args.get('year','All'); phase=request.args.get('phase','All')
     rows=PYQS
@@ -148,7 +162,13 @@ def pyq_test():
     if seed is None: seed=str(datetime.now().timestamp())
     rnd=random.Random(seed); chosen=rows if len(rows)<=count else rnd.sample(rows,count)
     key='|'.join(str(x['id']) for x in chosen)
-    return render_template('pyq_test.html',questions=chosen,test_key=key,filters=dict(subject=subject,chapter=chapter,year=year,phase=phase),count=len(chosen))
+    
+    prepared=[]
+    for q in chosen:
+        item=dict(q)
+        item['stem'], item['options']=split_pyq_question(q.get('question',''))
+        prepared.append(item)
+    return render_template('pyq_test.html',questions=prepared,test_key=key,filters=dict(subject=subject,chapter=chapter,year=year,phase=phase),count=len(prepared))
 
 @app.route('/pyq/submit',methods=['POST'])
 @req()
