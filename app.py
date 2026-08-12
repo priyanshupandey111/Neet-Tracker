@@ -134,6 +134,7 @@ def student_detail(uid):
     total=len(studies); done=sum(x["done"] for x in studies)
     return render_template("student_detail.html",student=s,studies=studies,percent=round(done*100/total) if total else 0)
 
+init_db()
+
 if __name__=="__main__":
-    init_db()
-    app.run(host="0.0.0.0",port=int(os.environ.get("PORT",5000)),debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
