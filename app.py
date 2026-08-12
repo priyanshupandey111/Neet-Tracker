@@ -2,7 +2,7 @@ from flask import Flask,render_template,request,redirect,session,url_for,flash
 from werkzeug.security import generate_password_hash,check_password_hash
 from functools import wraps
 from datetime import date,datetime,timedelta
-import sqlite3,os,calendar,json,random
+import sqlite3,os,calendar,json,random,re
 
 app=Flask(__name__); app.secret_key=os.environ.get("SECRET_KEY","change-me")
 DB=os.environ.get("DB_PATH","neet_hub.db")
@@ -49,24 +49,24 @@ def stats(rows):
     return {s:{"total":sum(r["subject"]==s for r in rows),"done":sum(r["subject"]==s and r["done"] for r in rows),"percent":round(sum(r["subject"]==s and r["done"] for r in rows)*100/sum(r["subject"]==s for r in rows)) if sum(r["subject"]==s for r in rows) else 0} for s in SUBJECTS}
 
 def split_pyq_question(text):
-    """Split the source question into stem + four numbered options when present."""
-    import re
-    parts=re.split(r'\s*\((1|2|3|4)\)\s*', text)
-    if len(parts) >= 10:
+    """Split the source question into stem + four numbered options."""
+    parts=re.split(r'\s*\((1|2|3|4)\)\s*', text or '')
+    if len(parts) >= 9:
         stem=parts[0].strip()
         opts={}
         for i in range(1, len(parts)-1, 2):
             n=parts[i]
-            if n in {"1","2","3","4"}: opts[n]=parts[i+1].strip()
+            if n in {"1","2","3","4"}:
+                opts[n]=parts[i+1].strip()
         if len(opts)==4:
             return stem, opts
-    return text.strip(), {}
+    return (text or '').strip(), {}
 
 def pyq_filters():
     subject=request.args.get('subject','All'); chapter=request.args.get('chapter','All'); year=request.args.get('year','All'); phase=request.args.get('phase','All')
     rows=PYQS
     if subject!='All': rows=[x for x in rows if x['subject']==subject]
-    if chapter!='All': rows=[x for x in rows if x['chapter']==chapter]
+    if chapter!='All': rows=[x for x in rows if same_chapter(x.get('chapter',''), chapter)]
     if year!='All': rows=[x for x in rows if str(x['year'])==str(year)]
     if phase!='All': rows=[x for x in rows if x['phase']==phase]
     return rows,subject,chapter,year,phase
@@ -168,7 +168,9 @@ def pyq():
 @req()
 def pyq_test():
     rows,subject,chapter,year,phase=pyq_filters(); count=min(max(int(request.args.get('count',10)),5),50)
-    if not rows: return redirect(url_for('pyq'))
+    if not rows:
+        flash("Is filter ke liye koi PYQ nahi mila. Subject/Chapter/Year/Phase check karo.")
+        return redirect(url_for('pyq', subject=subject, chapter=chapter, year=year, phase=phase))
     seed=request.args.get('seed')
     if seed is None: seed=str(datetime.now().timestamp())
     rnd=random.Random(seed); chosen=rows if len(rows)<=count else rnd.sample(rows,count)
