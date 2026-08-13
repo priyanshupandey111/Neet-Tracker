@@ -64,12 +64,13 @@ def split_pyq_question(text):
 
 def norm_chapter(s):
     s = (s or "").replace("&", "and").strip().lower()
-    s = re.sub(r"\s+", " ", s)
+    s = re.sub(r"\\s+", " ", s)
     s = re.sub(r"[^a-z0-9 ]+", " ", s)
-    return re.sub(r"\s+", " ", s).strip()
+    return re.sub(r"\\s+", " ", s).strip()
 
 def same_chapter(a, b):
     return norm_chapter(a) == norm_chapter(b)
+
 def pyq_filters():
     subject=request.args.get('subject','All'); chapter=request.args.get('chapter','All'); year=request.args.get('year','All'); phase=request.args.get('phase','All')
     rows=PYQS
@@ -175,7 +176,11 @@ def pyq():
 @app.route('/pyq/test')
 @req()
 def pyq_test():
-    rows,subject,chapter,year,phase=pyq_filters(); count=min(max(int(request.args.get('count',10)),5),50)
+    rows,subject,chapter,year,phase=pyq_filters()
+    try:
+        count=min(max(int(request.args.get('count',10)),5),50)
+    except (TypeError,ValueError):
+        count=10
     if not rows:
         flash("Is filter ke liye koi PYQ nahi mila. Subject/Chapter/Year/Phase check karo.")
         return redirect(url_for('pyq', subject=subject, chapter=chapter, year=year, phase=phase))
